@@ -7,8 +7,6 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { terminalService } from '@/services/tauri/terminal';
 import { eventsService } from '@/services/tauri/events';
 
-// ─── Theme ────────────────────────────────────────────────────────────────────
-// Must stay in sync with the app's CSS palette (index.css --background etc.)
 const XTERM_THEME = {
   background: '#0d0e10',
   foreground: '#e4e4e7',
@@ -35,107 +33,110 @@ const XTERM_THEME = {
 };
 
 export function XtermTerminal() {
-  const containerRef = useRef<HTMLDivElement>(null);
+  // Outer wrapper — padding lives here so FitAddon measures the content box correctly.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  // xterm mounts into this div — ZERO padding, fills 100% of wrapper content box.
+  const mountRef = useRef<HTMLDivElement>(null);
+
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
 
   const { fontSize, fontFamily } = useSettingsStore();
 
-  // ── Mount / unmount ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!mountRef.current) return;
 
     const term = new Terminal({
       fontFamily: fontFamily ?? "'JetBrains Mono', 'Menlo', monospace",
       fontSize: fontSize ?? 14,
       lineHeight: 1.4,
-      letterSpacing: 0,
       theme: XTERM_THEME,
       cursorBlink: true,
       cursorStyle: 'block',
       scrollback: 5000,
       allowTransparency: true,
-      // Raw mode: the PTY (mock or real Rust) handles ALL echo and line editing.
-      // The terminal component only forwards data — it never interprets it locally.
     });
 
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.loadAddon(new WebLinksAddon());
 
-    term.open(containerRef.current);
-    fit.fit();
+    // Mount into the zero-padding div so FitAddon reads the correct clientWidth.
+    term.open(mountRef.current);
 
     termRef.current = term;
     fitRef.current = fit;
 
+    // Fit AFTER the browser has painted the layout.
+    // requestAnimationFrame ensures mountRef has its final dimensions.
+    requestAnimationFrame(() => {
+      fit.fit();
+      terminalService.init();
+    });
+
     // ── Input → service layer ────────────────────────────────────────────────
-    // All keystrokes and paste events are forwarded verbatim to the PTY service.
-    // The component NEVER echoes, interprets, or handles them locally.
-    // Swap terminalService.writeTerminal for invoke("write_terminal") to connect Rust.
     const disposeInput = term.onData((data) => {
       terminalService.writeTerminal(data);
     });
 
     // ── Output ← service layer ───────────────────────────────────────────────
-    // All text written to the terminal arrives via the terminal-output event.
-    // The mock PTY emits these; the real Rust PTY will emit the same events via Tauri listen().
     const disposeOutput = eventsService.listen('terminal-output', ({ data }) => {
       term.write(data);
     });
 
     // ── Resize → service layer ───────────────────────────────────────────────
-    // Notify the PTY about viewport changes so it can reflow line wrapping.
-    // Swap for invoke("resize_terminal", { cols, rows }) with the Rust backend.
     const disposeResize = term.onResize(({ cols, rows }) => {
       terminalService.resizeTerminal(cols, rows);
     });
 
-    // ── Window resize ────────────────────────────────────────────────────────
-    const onWindowResize = () => {
-      fit.fit();
-    };
-    window.addEventListener('resize', onWindowResize);
-
-    // ── Kick off the PTY session ─────────────────────────────────────────────
-    // Sends the welcome message + first prompt through the event bus so it
-    // arrives via the same terminal-output path as all other PTY output.
-    terminalService.init();
+    // ── ResizeObserver on the WRAPPER ────────────────────────────────────────
+    // Catches window resize AND panel resize (react-resizable-panels drags).
+    const ro = new ResizeObserver(() => {
+      // Debounce with rAF to avoid layout thrashing during panel drag.
+      requestAnimationFrame(() => fit.fit());
+    });
+    if (wrapperRef.current) ro.observe(wrapperRef.current);
 
     return () => {
+      ro.disconnect();
       disposeInput.dispose();
       disposeResize.dispose();
-      disposeOutput(); // eventsService.listen returns an unlisten fn
-      window.removeEventListener('resize', onWindowResize);
+      disposeOutput();
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally empty — terminal mounts once
+  }, []);
 
-  // ── Settings changes (font size / family) ──────────────────────────────────
-  // Applied directly to the live xterm instance without remounting.
+  // Live settings changes — update running terminal without remount.
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
     term.options.fontSize = fontSize;
     term.options.fontFamily = fontFamily;
-    fitRef.current?.fit();
+    requestAnimationFrame(() => fitRef.current?.fit());
   }, [fontSize, fontFamily]);
 
   return (
+    // Padding is on this outer wrapper — xterm never sees it.
+    // bg matches the xterm theme background so the border between
+    // character rows and padding is seamless.
     <div
-      className="w-full h-full min-h-0 relative"
+      ref={wrapperRef}
+      className="w-full h-full min-h-0 bg-[#0d0e10]"
+      style={{ padding: '8px 12px', boxSizing: 'border-box' }}
       data-testid="xterm-container"
-      // Clicking the wrapper focuses the terminal so keystrokes are captured
       onClick={() => termRef.current?.focus()}
     >
-      {/* xterm mounts into this div — padding via CSS avoids xterm viewport math errors */}
+      {/*
+        Zero padding, fills the content box of the wrapper.
+        FitAddon reads this element's clientWidth/clientHeight
+        and gets the correct usable dimensions.
+      */}
       <div
-        ref={containerRef}
-        className="absolute inset-0"
-        style={{ padding: '8px 12px' }}
+        ref={mountRef}
+        style={{ width: '100%', height: '100%' }}
       />
     </div>
   );
