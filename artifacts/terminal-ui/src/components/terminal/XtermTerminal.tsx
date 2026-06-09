@@ -6,95 +6,72 @@ import 'xterm/css/xterm.css';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { terminalService } from '@/services/tauri/terminal';
 import { eventsService } from '@/services/tauri/events';
-
-const XTERM_THEME = {
-  background: '#0d0e10',
-  foreground: '#e4e4e7',
-  cursor: '#00d5ff',
-  cursorAccent: '#0d0e10',
-  selectionBackground: 'rgba(0, 213, 255, 0.25)',
-  selectionForeground: '#ffffff',
-  black: '#1a1b1e',
-  red: '#e74c3c',
-  green: '#2ecc71',
-  yellow: '#f1c40f',
-  blue: '#00d5ff',
-  magenta: '#9b59b6',
-  cyan: '#00bcd4',
-  white: '#e4e4e7',
-  brightBlack: '#555e6e',
-  brightRed: '#ff6b6b',
-  brightGreen: '#5efc82',
-  brightYellow: '#ffe066',
-  brightBlue: '#6ec6ff',
-  brightMagenta: '#ce93d8',
-  brightCyan: '#80deea',
-  brightWhite: '#ffffff',
-};
+import { getSchemeByName } from '@/lib/terminalThemes';
 
 export function XtermTerminal() {
-  // Outer wrapper — padding lives here so FitAddon measures the content box correctly.
   const wrapperRef = useRef<HTMLDivElement>(null);
-  // xterm mounts into this div — ZERO padding, fills 100% of wrapper content box.
   const mountRef = useRef<HTMLDivElement>(null);
-
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
 
-  const { fontSize, fontFamily } = useSettingsStore();
+  const {
+    fontSize, fontFamily, lineHeight, letterSpacing,
+    cursorStyle, cursorBlink, scrollback,
+    colorScheme, opacity,
+  } = useSettingsStore();
 
+  // ── Mount once ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mountRef.current) return;
 
+    const scheme = getSchemeByName(colorScheme);
+    const bgWithOpacity = opacity < 100
+      ? hexToRgba(scheme.theme.background as string, opacity / 100)
+      : scheme.theme.background;
+
     const term = new Terminal({
-      fontFamily: fontFamily ?? "'JetBrains Mono', 'Menlo', monospace",
-      fontSize: fontSize ?? 14,
-      lineHeight: 1.4,
-      theme: XTERM_THEME,
-      cursorBlink: true,
-      cursorStyle: 'block',
-      scrollback: 5000,
+      fontFamily: `'${fontFamily}', 'JetBrains Mono', 'Menlo', monospace`,
+      fontSize,
+      lineHeight,
+      letterSpacing,
+      theme: { ...scheme.theme, background: bgWithOpacity },
+      cursorBlink,
+      cursorStyle,
+      scrollback,
       allowTransparency: true,
     });
 
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.loadAddon(new WebLinksAddon());
-
-    // Mount into the zero-padding div so FitAddon reads the correct clientWidth.
     term.open(mountRef.current);
 
     termRef.current = term;
     fitRef.current = fit;
 
-    // Fit AFTER the browser has painted the layout.
-    // requestAnimationFrame ensures mountRef has its final dimensions.
-    requestAnimationFrame(() => {
-      fit.fit();
-      terminalService.init();
-    });
+    // Double rAF ensures the terminal's render service is fully initialized
+    // before FitAddon tries to read character dimensions.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        try {
+          fit.fit();
+        } catch {
+          // render service not ready yet — try once more after a paint
+          setTimeout(() => { try { fit.fit(); } catch { /* ignore */ } }, 50);
+        }
+        terminalService.init();
+      })
+    );
 
-    // ── Input → service layer ────────────────────────────────────────────────
-    const disposeInput = term.onData((data) => {
-      terminalService.writeTerminal(data);
-    });
+    const disposeInput = term.onData((data) => terminalService.writeTerminal(data));
+    const disposeOutput = eventsService.listen('terminal-output', ({ data }) => term.write(data));
+    const disposeResize = term.onResize(({ cols, rows }) => terminalService.resizeTerminal(cols, rows));
 
-    // ── Output ← service layer ───────────────────────────────────────────────
-    const disposeOutput = eventsService.listen('terminal-output', ({ data }) => {
-      term.write(data);
-    });
-
-    // ── Resize → service layer ───────────────────────────────────────────────
-    const disposeResize = term.onResize(({ cols, rows }) => {
-      terminalService.resizeTerminal(cols, rows);
-    });
-
-    // ── ResizeObserver on the WRAPPER ────────────────────────────────────────
-    // Catches window resize AND panel resize (react-resizable-panels drags).
-    const ro = new ResizeObserver(() => {
-      // Debounce with rAF to avoid layout thrashing during panel drag.
-      requestAnimationFrame(() => fit.fit());
-    });
+    const ro = new ResizeObserver(() =>
+      requestAnimationFrame(() => {
+        try { fit.fit(); } catch { /* terminal may have been disposed */ }
+      })
+    );
     if (wrapperRef.current) ro.observe(wrapperRef.current);
 
     return () => {
@@ -109,35 +86,53 @@ export function XtermTerminal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Live settings changes — update running terminal without remount.
+  // ── Reactively apply settings to live instance ───────────────────────────
   useEffect(() => {
     const term = termRef.current;
     if (!term) return;
     term.options.fontSize = fontSize;
-    term.options.fontFamily = fontFamily;
+    term.options.fontFamily = `'${fontFamily}', 'JetBrains Mono', 'Menlo', monospace`;
+    term.options.lineHeight = lineHeight;
+    term.options.letterSpacing = letterSpacing;
     requestAnimationFrame(() => fitRef.current?.fit());
-  }, [fontSize, fontFamily]);
+  }, [fontSize, fontFamily, lineHeight, letterSpacing]);
+
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    term.options.cursorStyle = cursorStyle;
+    term.options.cursorBlink = cursorBlink;
+  }, [cursorStyle, cursorBlink]);
+
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    const scheme = getSchemeByName(colorScheme);
+    const bgWithOpacity = opacity < 100
+      ? hexToRgba(scheme.theme.background as string, opacity / 100)
+      : scheme.theme.background;
+    term.options.theme = { ...scheme.theme, background: bgWithOpacity };
+  }, [colorScheme, opacity]);
 
   return (
-    // Padding is on this outer wrapper — xterm never sees it.
-    // bg matches the xterm theme background so the border between
-    // character rows and padding is seamless.
     <div
       ref={wrapperRef}
-      className="w-full h-full min-h-0 bg-[#0d0e10]"
-      style={{ padding: '8px 12px', boxSizing: 'border-box' }}
+      className="w-full h-full min-h-0"
+      style={{ padding: '8px 12px', boxSizing: 'border-box', backgroundColor: getSchemeByName(colorScheme).bg }}
       data-testid="xterm-container"
       onClick={() => termRef.current?.focus()}
     >
-      {/*
-        Zero padding, fills the content box of the wrapper.
-        FitAddon reads this element's clientWidth/clientHeight
-        and gets the correct usable dimensions.
-      */}
-      <div
-        ref={mountRef}
-        style={{ width: '100%', height: '100%' }}
-      />
+      <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
     </div>
   );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
