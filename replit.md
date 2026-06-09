@@ -1,36 +1,54 @@
-# [Project name]
+# Warp-Inspired Terminal UI
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A modern AI-native terminal application frontend inspired by Warp, Cursor, and Claude Code. Full desktop-style layout with command blocks, AI assistant panel, command palette, history, workflows, and settings.
 
 ## Run & Operate
 
+- `pnpm --filter @workspace/terminal-ui run dev` — run the terminal UI (port assigned by workflow)
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Frontend: React + Vite + TailwindCSS + shadcn/ui
+- Terminal: xterm.js with FitAddon, WebLinksAddon
+- State: Zustand stores (terminal, workspace, ai, settings)
+- Animation: framer-motion
+- Layout: react-resizable-panels
+- API: Express 5 (api-server artifact, not used by terminal UI)
+- DB: PostgreSQL + Drizzle ORM (not yet used)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/terminal-ui/src/` — all frontend source
+- `artifacts/terminal-ui/src/services/tauri/` — Tauri IPC abstraction layer (mock implementations)
+- `artifacts/terminal-ui/src/stores/` — Zustand state stores
+- `artifacts/terminal-ui/src/components/terminal/` — xterm.js wrapper + command blocks
+- `artifacts/terminal-ui/src/components/sidebar/` — collapsible sidebar
+- `artifacts/terminal-ui/src/components/ai/` — AI assistant panel
+- `artifacts/terminal-ui/src/components/command-palette/` — Ctrl+P palette
+- `artifacts/terminal-ui/src/pages/` — Terminal, History, Workflows, Settings pages
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **No backend calls from the UI** — all communication is abstracted behind `src/services/tauri/` service interfaces. When the Rust backend is ready, only the service layer changes.
+- **Mock-first** — services simulate Tauri `invoke()` and `listen()` with realistic mock data so the UI is fully interactive without a backend.
+- **Zustand for state** — four stores: terminalStore (command blocks), workspaceStore (projects), aiStore (chat), settingsStore (user prefs).
+- **xterm.js** — real terminal emulator embedded in the workspace view, themed to match the app palette.
+- **Keyboard-first** — Ctrl+P (command palette), Ctrl+Shift+A (AI panel), Ctrl+B (sidebar toggle), Esc (close overlays).
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Terminal Workspace: xterm.js emulator + scrollable command block history with status, duration, exit codes
+- Left Sidebar: collapsible to icon rail, project/history/workflow/AI navigation
+- AI Assistant Panel: right-side drawer with chat, suggested actions, Claude model badge
+- Command Palette: Ctrl+P overlay with grouped search across commands, workflows, settings
+- History View: sortable/filterable table of all past commands
+- Workflows View: card grid of saved multi-step command workflows
+- Settings: appearance, terminal, AI, keyboard shortcuts configuration
+- Status Bar: workspace, git branch, backend status, active model, latency
 
 ## User preferences
 
@@ -38,7 +56,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The Tauri service layer in `src/services/tauri/` uses mock implementations. Do NOT replace with direct Tauri API calls — always go through the service interfaces.
+- xterm.js requires `import 'xterm/css/xterm.css'` to render correctly.
+- Google Fonts `@import url(...)` MUST be the very first line in index.css before `@import "tailwindcss"`.
 
 ## Pointers
 

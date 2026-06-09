@@ -1,0 +1,641 @@
+# Build a Warp-Inspired Terminal UI
+
+
+
+Build a modern desktop terminal frontend inspired by Warp, Cursor, and Claude Code.
+
+
+
+IMPORTANT:
+
+This is NOT a chatbot application.
+
+This is NOT a command prompt clone.
+
+This is a terminal emulator frontend that will connect to a Rust backend through IPC/WebSocket events.
+
+
+
+Tech Stack:
+
+
+
+* React
+
+* TypeScript
+
+* TailwindCSS
+
+* shadcn/ui
+
+* xterm.js
+
+* Zustand for state management
+
+
+
+Design Requirements:
+
+
+
+* Dark theme by default
+
+* Professional developer-tool aesthetic
+
+* Similar visual quality to Warp, Cursor, Raycast, and Linear
+
+* Smooth animations
+
+* Rounded corners
+
+* Modern typography
+
+* Minimalistic UI
+
+* Responsive desktop layout
+
+
+
+Application Layout:
+
+
+
+┌─────────────────────────────────────────────┐
+
+│ Top Bar                                     │
+
+├──────────────┬──────────────────────────────┤
+
+│ Sidebar      │ Main Terminal Area           │
+
+│              │                              │
+
+│ Projects     │ Command Blocks               │
+
+│ History      │                              │
+
+│ Workflows    │ Embedded xterm.js            │
+
+│ AI Chat      │                              │
+
+│ Settings     │                              │
+
+├──────────────┴──────────────────────────────┤
+
+│ Status Bar                                  │
+
+└─────────────────────────────────────────────┘
+
+
+
+Create the following pages/components:
+
+
+
+1. Terminal Workspace
+
+
+
+Main screen.
+
+
+
+Contains:
+
+
+
+* xterm.js terminal component
+
+* command block history
+
+* command execution status
+
+* active working directory
+
+* git branch display
+
+* execution duration display
+
+* scrollable command history
+
+
+
+Each command should be rendered as a separate block.
+
+
+
+Command Block Structure:
+
+
+
+* command
+
+* timestamp
+
+* duration
+
+* output
+
+* exit status
+
+
+
+Example:
+
+
+
+$ cargo build
+
+
+
+[output here]
+
+
+
+✓ Success
+
+Duration: 2.1s
+
+
+
+2. Left Sidebar
+
+
+
+Sections:
+
+
+
+* Workspace
+
+* Projects
+
+* History
+
+* Workflows
+
+* AI Assistant
+
+* Settings
+
+
+
+Collapsible.
+
+
+
+3. AI Assistant Panel
+
+
+
+Right side drawer.
+
+
+
+Features:
+
+
+
+* chat interface
+
+* suggested actions
+
+* explain command output
+
+* ask about workspace
+
+* analyze errors
+
+
+
+Should feel similar to Claude Code sidebar.
+
+
+
+4. Command Palette
+
+
+
+Open with:
+
+
+
+Ctrl+P
+
+
+
+Features:
+
+
+
+* search commands
+
+* search workflows
+
+* open settings
+
+* navigate projects
+
+
+
+Inspired by VS Code command palette.
+
+
+
+5. History View
+
+
+
+Table view.
+
+
+
+Columns:
+
+
+
+* command
+
+* working directory
+
+* timestamp
+
+* exit code
+
+* duration
+
+
+
+Support:
+
+
+
+* filtering
+
+* search
+
+* sorting
+
+
+
+6. Workflow View
+
+
+
+Card-based UI.
+
+
+
+Example cards:
+
+
+
+Start Development
+
+Deploy Project
+
+Run Tests
+
+Build Application
+
+
+
+Each workflow card shows:
+
+
+
+* title
+
+* description
+
+* command count
+
+* last used timestamp
+
+
+
+7. Settings Page
+
+
+
+Sections:
+
+
+
+* Appearance
+
+* Theme
+
+* AI Settings
+
+* Terminal Settings
+
+* Keyboard Shortcuts
+
+
+
+8. Status Bar
+
+
+
+Display:
+
+
+
+* current workspace
+
+* git branch
+
+* connection status
+
+* backend status
+
+* active model
+
+
+
+State Management:
+
+
+
+Create Zustand stores for:
+
+
+
+* terminal state
+
+* command blocks
+
+* workspace
+
+* AI chat
+
+* settings
+
+
+
+Backend Integration:
+
+
+
+DO NOT implement backend logic.
+
+
+
+Create mock services only.
+
+
+
+Assume backend emits:
+
+
+
+TerminalOutputEvent
+
+CommandStartedEvent
+
+CommandCompletedEvent
+
+WorkspaceChangedEvent
+
+AgentMessageEvent
+
+
+
+All backend communication must be abstracted behind service interfaces.
+
+
+
+Folder Structure:
+
+
+
+src/
+
+├── components/
+
+│   ├── terminal/
+
+│   ├── command-blocks/
+
+│   ├── sidebar/
+
+│   ├── ai/
+
+│   ├── command-palette/
+
+│   └── settings/
+
+├── pages/
+
+├── hooks/
+
+├── services/
+
+├── stores/
+
+├── layouts/
+
+├── types/
+
+└── lib/
+
+
+
+Requirements:
+
+
+
+* Clean architecture
+
+* Reusable components
+
+* TypeScript everywhere
+
+* No placeholder lorem ipsum
+
+* Production-quality code structure
+
+* Use mock data to demonstrate functionality
+
+* Include beautiful loading states
+
+* Include empty states
+
+* Include keyboard shortcuts
+
+* Include theme support
+
+
+
+The final result should look like a modern AI-native terminal application that could realistically compete visually with Warp, Cursor, and Claude Code.
+
+Desktop Framework Requirements
+
+
+
+This application MUST be built as a Tauri desktop application.
+
+
+
+Tech Stack:
+
+
+
+* Tauri v2
+
+* React
+
+* TypeScript
+
+* TailwindCSS
+
+* shadcn/ui
+
+* Zustand
+
+* xterm.js
+
+
+
+Architecture Requirements:
+
+
+
+The Rust backend will be implemented separately.
+
+
+
+The frontend must be designed specifically for Tauri integration.
+
+
+
+Do NOT use:
+
+
+
+* Express
+
+* Node backend servers
+
+* Next.js API routes
+
+* WebSocket localhost servers
+
+* Electron
+
+
+
+Assume all backend communication happens through Tauri IPC.
+
+
+
+Create abstraction layers for:
+
+
+
+* invoke()
+
+* listen()
+
+* emit()
+
+
+
+Backend communication should be isolated inside:
+
+
+
+src/services/tauri/
+
+
+
+Example structure:
+
+
+
+src/
+
+├── services/
+
+│   ├── tauri/
+
+│   │   ├── terminal.ts
+
+│   │   ├── workspace.ts
+
+│   │   ├── ai.ts
+
+│   │   └── events.ts
+
+
+
+The UI must never directly call Tauri APIs.
+
+
+
+Use service abstractions so the Rust backend can be connected later without changing UI components.
+
+
+
+Assume the Rust backend will expose commands such as:
+
+
+
+invoke("write_terminal")
+
+invoke("resize_terminal")
+
+invoke("get_workspace")
+
+invoke("execute_workflow")
+
+invoke("send_agent_message")
+
+
+
+Assume Rust backend events:
+
+
+
+terminal-output
+
+command-started
+
+command-finished
+
+workspace-updated
+
+agent-message
+
+backend-status
+
+
+
+Design the frontend around these events.
+
+
+
+The application should feel like a native desktop application rather than a website.
+
+
+
+Use resizable panels.
+
+
+
+Use desktop-style layouts.
+
+
+
+Support keyboard-first navigation.
+
+
+
+Avoid browser-like navigation patterns.
+
+
+
+The terminal should be the primary focus of the interface.
+
+
