@@ -1,23 +1,23 @@
-import { Project } from '@/stores/workspaceStore';
+import { Project } from "@/stores/workspaceStore";
 
 export interface WorkspaceService {
-  getWorkspace: () => Promise<{ projects: Project[], activeProjectId: string }>;
+  getWorkspace: () => Promise<{ projects: Project[]; activeProjectId: string }>;
 }
 
 export const workspaceService: WorkspaceService = {
   getWorkspace: async () => {
-    console.log('[Tauri Mock] get_workspace');
+    console.log("[Tauri Mock] get_workspace");
     return {
       projects: [
         {
-          id: '1',
-          name: 'terminal-ui',
-          path: '~/projects/terminal-ui',
+          id: "1",
+          name: "terminal-ui",
+          path: "~/projects/terminal-ui",
           lastOpened: new Date(),
-          language: 'typescript'
-        }
+          language: "typescript",
+        },
       ],
-      activeProjectId: '1'
+      activeProjectId: "1",
     };
-  }
+  },
 };
