@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Ok;
 
-use crate::pty::session::TerminalSession;
+use crate::pty_std::session::TerminalSession;
 
 pub struct SessionManager {
     session: HashMap<String, TerminalSession>,
@@ -14,7 +14,7 @@ impl SessionManager {
             session: HashMap::new(),
         }
     }
-    pub fn create_session(&mut self, id: String) -> Result<()> {
+    pub fn create_session(&mut self, id: String) -> Result<(), anyhow::Error> {
         let session = TerminalSession::new(id.clone())?;
         self.session.insert(id, session);
         Ok(())

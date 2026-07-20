@@ -1,6 +1,6 @@
 use anyhow::{Ok, Result};
 use portable_pty::{CommandBuilder, PtyPair, PtySize, native_pty_system};
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 
 pub struct TerminalSession {
     pub id: String,
@@ -17,7 +17,7 @@ impl TerminalSession {
             pixel_height: 0,
         })?;
         #[cfg(target_os = "windows")]
-        let shell = "powershell.exe";
+        let shell = "bash";
 
         #[cfg(not(target_os = "windows"))]
         let shell = "bash";
@@ -36,8 +36,9 @@ impl TerminalSession {
 
     pub fn read(&mut self) -> Result<String> {
         let mut reader = self.pty.master.try_clone_reader()?;
-        let mut buf = [0u8; 4096];
-        let size = reader.read(&mut buf)?;
-        Ok(String::from_utf8_lossy(&buf[..size]).to_string())
+        let mut buffer = [0u8; 4096];
+        let bytes_read = reader.read(&mut buffer)?;
+        let output = String::from_utf8_lossy(&buffer[..bytes_read]).into_owned();
+        Ok(output)
     }
 }
