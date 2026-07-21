@@ -4,7 +4,8 @@ use std::io::{BufRead, BufReader, Read, Write};
 
 pub struct TerminalSession {
     pub id: String,
-    pty: PtyPair,
+    writer: Box<dyn Write + Send>,
+    reader: Box<dyn Read + Send>,
 }
 
 impl TerminalSession {
@@ -24,21 +25,54 @@ impl TerminalSession {
 
         let cmd = CommandBuilder::new(shell);
         pair.slave.spawn_command(cmd)?;
-        Ok(Self { id, pty: pair })
+        let writer = pair.master.take_writer()?;
+        let reader = pair.master.try_clone_reader()?;
+        Ok(Self { id, reader, writer })
     }
 
-    pub fn write(&mut self, input: &str) -> Result<()> {
-        let mut writer = self.pty.master.take_writer()?;
-        writer.write_all(input.as_bytes())?;
-        writer.flush()?;
-        Ok(())
+    pub fn split(self) -> (PtyReader, PtyWriter) {
+        (
+            PtyReader {
+                reader: self.reader,
+            },
+            PtyWriter {
+                writer: self.writer,
+            },
+        )
     }
+}
 
+pub struct PtyReader {
+    reader: Box<dyn Read + Send>,
+}
+
+impl PtyReader {
     pub fn read(&mut self) -> Result<String> {
-        let mut reader = self.pty.master.try_clone_reader()?;
         let mut buffer = [0u8; 4096];
-        let bytes_read = reader.read(&mut buffer)?;
-        let output = String::from_utf8_lossy(&buffer[..bytes_read]).into_owned();
-        Ok(output)
+        let bytes_read = self.reader.read(&mut buffer)?;
+        if bytes_read == 0 {
+            anyhow::bail!("EOF reached");
+        }
+        Ok(String::from_utf8_lossy(&buffer[..bytes_read]).to_string())
+    }
+    pub fn read_chunk(&mut self) -> Result<Vec<u8>> {
+        let mut buffer = [0u8; 4096];
+        let bytes_read = self.reader.read(&mut buffer)?;
+        if bytes_read == 0 {
+            anyhow::bail!("EOF reached");
+        }
+        Ok(buffer[..bytes_read].to_vec())
+    }
+}
+
+pub struct PtyWriter {
+    writer: Box<dyn Write + Send>,
+}
+
+impl PtyWriter {
+    pub fn write(&mut self, input: &str) -> Result<()> {
+        self.writer.write_all(input.as_bytes())?;
+        self.writer.flush()?;
+        Ok(())
     }
 }
