@@ -15,8 +15,8 @@ impl SessionManager {
         }
     }
     pub fn create_session(&mut self, id: String) -> Result<(), anyhow::Error> {
-        let session = TerminalSession::new(id.clone())?;
-        self.session.insert(id, session);
+        // let session = TerminalSession::new(id.clone())?;
+        // self.session.insert(id, session);
         Ok(())
     }
 
