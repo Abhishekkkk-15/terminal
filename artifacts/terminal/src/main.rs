@@ -19,7 +19,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     thread::spawn(move || {
         loop {
             match pty_reader.read_chunk() {
-                // Ok(0) => break,
                 Ok(n) => {
                     let text = String::from_utf8_lossy(&n).to_string();
                     if tx.send(TerminalEvent::Output(text)).is_err() {
