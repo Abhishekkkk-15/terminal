@@ -17,6 +17,10 @@
 //   terminal-output, command-started, command-finished,
 //   workspace-updated, agent-message, backend-status
 
+pub mod pty_std;
+pub mod commands;
+pub mod state;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
