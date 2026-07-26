@@ -9,29 +9,38 @@ use std::{
     io::{BufRead, BufReader, Write},
     sync::{Arc, Mutex},
 };
-fn main() {
-    terminal_ui_lib::run()
+fn main() -> Result<(), anyhow::Error> {
+    print!("Hey");
+    let (tx, rx) = mpsc::channel::<TerminalEvent>();
+
+    let shell = if cfg!(target_os = "windows") {
+        "powershell.exe"
+    } else {
+        "bash"
+    };
+    let initial_cmd: &[u8] = if cfg!(target_os = "windows") {
+        b"dir\n"
+    } else {
+        b"ls -al\n"
+    };
+
+    let mut sessions = TerminalSession::new(shell, tx)?;
+    let mut terminal = sessions.sessions.remove("1").unwrap();
+    terminal.write(initial_cmd)?;
+
+    while let Ok(event) = rx.recv() {
+        match event {
+            TerminalEvent::Output(text) => {
+                println!("{text}")
+            }
+            TerminalEvent::Closed => {
+                println!("Session closed")
+            }
+        }
+    }
+
+    terminal.kill()?;
+    terminal_ui_lib::run();
+
+    Ok(())
 }
-
-// fn main() -> Result<(), anyhow::Error> {
-//     let (tx, rx) = mpsc::channel::<TerminalEvent>();
-
-//     let mut sessions = TerminalSession::new("/bin/bash", tx)?;
-//     let mut terminal = sessions.sessions.remove("1").unwrap();
-//     terminal.write(b"ls -al\n")?;
-
-//     while let Ok(event) = rx.recv() {
-//         match event {
-//             TerminalEvent::Output(text) => {
-//                 println!("{text}")
-//             }
-//             TerminalEvent::Closed => {
-//                 println!("Session closed")
-//             }
-//         }
-//     }
-
-//     terminal.kill()?;
-
-//     Ok(())
-// }
