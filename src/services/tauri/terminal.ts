@@ -1,4 +1,6 @@
 import { eventBus } from './events';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 // ─── PTY state ───────────────────────────────────────────────────────────────
 // When the Rust backend is ready, replace this entire module with real
@@ -614,16 +616,13 @@ const COMMANDS: Record<string, CommandFn> = {
 function processLine(line: string): void {
   const trimmed = line.trim();
   if (!trimmed) {
-    prompt();
+    invoke('write_pty', { command: '' }).catch(console.error);
     return;
   }
 
   commandHistory.push(trimmed);
   historyIndex = commandHistory.length;
 
-  const [cmd, ...args] = trimmed.split(/\s+/);
-
-  // Emit lifecycle events so the Zustand store can track command blocks
   const id = `cmd-${Date.now()}`;
   const startTime = Date.now();
   eventBus.emit('command-started', {
@@ -633,36 +632,24 @@ function processLine(line: string): void {
     gitBranch,
   });
 
-  const handler = COMMANDS[cmd];
-  if (!handler) {
-    const output = [
-      `${col(`${cmd}:`, RED)} command not found`,
-      `Try ${col('help', CYAN)} to see available commands.`,
-    ];
-    output.forEach((l) => writeln(l));
-    eventBus.emit('command-finished', {
-      id,
-      exitCode: 127,
-      duration: Date.now() - startTime,
-      output,
+  invoke('write_pty', { command: trimmed })
+    .then(() => {
+      eventBus.emit('command-finished', {
+        id,
+        exitCode: 0,
+        duration: Date.now() - startTime,
+        output: [],
+      });
+    })
+    .catch((err) => {
+      writeln(`\r\nError invoking write_pty: ${err}`);
+      eventBus.emit('command-finished', {
+        id,
+        exitCode: 1,
+        duration: Date.now() - startTime,
+        output: [String(err)],
+      });
     });
-    prompt();
-    return;
-  }
-
-  const result = handler(args);
-  result.output.forEach((l) => writeln(l));
-
-  eventBus.emit('command-finished', {
-    id,
-    exitCode: result.exitCode,
-    duration: Date.now() - startTime,
-    output: result.output,
-  });
-
-  if (cmd !== 'clear') {
-    prompt();
-  }
 }
 
 // ─── Public service interface ────────────────────────────────────────────────
@@ -807,10 +794,22 @@ export const terminalService: TerminalService = {
     // Will become: await invoke("resize_terminal", { cols, rows });
   },
 
-  init: () => {
-    writeln(`${BOLD}${CYAN}Welcome to Warp UI${RESET}  ${GRAY}(mock PTY — Rust backend not connected)${RESET}`);
-    writeln(`Type ${col('help', YELLOW)} to see available commands.`);
-    writeln('');
-    prompt();
+  init: async () => {
+    try {
+      // Start listening to PTY output first so we don't miss the initial shell prompt
+      await listen<string>('pty-output', (event) => {
+        eventBus.emit('terminal-output', { data: event.payload });
+      });
+
+      await listen<string>('pty-closed', (event) => {
+        eventBus.emit('terminal-output', { data: `\r\n${event.payload}\r\n` });
+      });
+
+      // Spawn/start the PTY backend session
+      await invoke('start_pty');
+    } catch (err) {
+      writeln(`Failed to initialize PTY: ${err}`);
+      console.error(err);
+    }
   },
 };
