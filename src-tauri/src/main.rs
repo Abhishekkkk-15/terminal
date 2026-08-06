@@ -7,7 +7,6 @@ use pty_std::session::TerminalSession;
 use std::io::Write;
 
 fn main() -> Result<(), anyhow::Error> {
-    println!("Program started");
     let (tx, rx) = mpsc::channel::<TerminalEvent>();
 
     let shell = if cfg!(target_os = "windows") {
@@ -23,10 +22,18 @@ fn main() -> Result<(), anyhow::Error> {
 
     let mut sessions = TerminalSession::new(shell, tx)?;
     let mut terminal = sessions.sessions.remove("1").unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(500));
-    terminal.write(initial_cmd)?;
 
     while let Ok(event) = rx.recv() {
+        if let TerminalEvent::Output(ref text) = event {
+            if text.contains('$') || text.contains('%') || text.contains('#') || text.contains('>')
+            {
+                break;
+            }
+        }
+    }
+    terminal.write(initial_cmd)?;
+
+    for event in rx {
         match event {
             TerminalEvent::Output(text) => {
                 print!("{text}");
