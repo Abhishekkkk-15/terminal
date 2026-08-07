@@ -38,7 +38,6 @@ impl TerminalManager {
 
         let mut reader = pair.master.try_clone_reader()?;
         let writer = Arc::new(Mutex::new(pair.master.take_writer()?));
-        let writer_clone = Arc::clone(&writer);
         thread::spawn(move || {
             let mut buffer = [0u8; 1024];
 
@@ -51,12 +50,6 @@ impl TerminalManager {
                     Ok(n) => {
                         // Continuous stream chunk received!
                         let output = String::from_utf8_lossy(&buffer[..n]);
-                        if output.contains("\u{1b}[6n") {
-                            if let Ok(mut w) = writer_clone.lock() {
-                                let _ = w.write_all(b"\x1b[1;1R");
-                                let _ = w.flush();
-                            }
-                        }
                         if tx.send(TerminalEvent::Output(output.into_owned())).is_err() {
                             break;
                         }

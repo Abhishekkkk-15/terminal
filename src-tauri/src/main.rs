@@ -62,8 +62,16 @@ async fn write_pty(command: String, state: State<'_, AppTerminalState>) -> Resul
         let terminal = sessions
             .sessions
             .get_mut("1")
-            .ok_or_else(|| "Terminal sessino '1' not found".to_string())?;
-        let formatted_cmd = format!("{}\n", command);
+            .ok_or_else(|| "Terminal session '1' not found".to_string())?;
+        
+        let formatted_cmd = if command.ends_with('\n') || command.ends_with('\r') {
+            command
+        } else if cfg!(target_os = "windows") {
+            format!("{}\r\n", command)
+        } else {
+            format!("{}\n", command)
+        };
+
         terminal
             .write(formatted_cmd.as_bytes())
             .map_err(|e| e.to_string())?;
