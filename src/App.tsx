@@ -18,6 +18,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={TerminalWorkspace} />
+      <Route path="/index.html" component={TerminalWorkspace} />
       <Route path="/history" component={HistoryPage} />
       <Route path="/workflows" component={WorkflowsPage} />
       <Route path="/settings" component={SettingsPage} />
@@ -61,8 +62,10 @@ function ThemeManager() {
 function App() {
   useKeyboardShortcuts();
 
+  const baseUrl = (import.meta.env.BASE_URL || "").replace(/\/$/, "").replace(/^\./, "");
+
   return (
-    <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+    <WouterRouter base={baseUrl}>
       <ThemeManager />
       <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground selection:bg-primary/30">
         <TopBar />

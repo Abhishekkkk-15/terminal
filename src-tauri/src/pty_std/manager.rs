@@ -44,6 +44,10 @@ impl TerminalManager {
 
             loop {
                 match reader.read(&mut buffer) {
+                    Ok(0) => {
+                        let _ = tx.send(TerminalEvent::Closed);
+                        break;
+                    }
                     Ok(n) => {
                         // Continuous stream chunk received!
                         let output = String::from_utf8_lossy(&buffer[..n]);
@@ -53,11 +57,13 @@ impl TerminalManager {
                                 let _ = w.flush();
                             }
                         }
-                        tx.send(TerminalEvent::Output(output.into_owned())).unwrap();
+                        if tx.send(TerminalEvent::Output(output.into_owned())).is_err() {
+                            break;
+                        }
                     }
                     Err(err) => {
                         eprintln!("Read error: {}", err);
-                        tx.send(TerminalEvent::Closed).unwrap();
+                        let _ = tx.send(TerminalEvent::Closed);
                         break;
                     }
                 }
