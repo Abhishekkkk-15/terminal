@@ -40,12 +40,7 @@ function prompt(): void {
 function clearLine(): void {
   // Move to column 0, erase line
   write('\r\x1b[2K');
-  // Reprint prompt + current buffer with cursor placed correctly
-  const branch = gitBranch
-    ? ` ${PURPLE}git:(${ORANGE}${gitBranch}${PURPLE})${RESET}`
-    : '';
-  const promptStr = `${GREEN}${cwd}${RESET}${branch} ${BOLD}${CYAN}$${RESET} `;
-  write(promptStr + inputBuffer);
+  write(inputBuffer);
   // Move cursor back to cursorPos
   if (cursorPos < inputBuffer.length) {
     write(`\x1b[${inputBuffer.length - cursorPos}D`);
@@ -669,53 +664,59 @@ export const terminalService: TerminalService = {
       const ch = data[i];
       const code = data.charCodeAt(i);
 
-      // Escape sequences (arrow keys, etc.)
-      if (ch === '\x1b' && data[i + 1] === '[') {
-        const seq = data[i + 2];
-        if (seq === 'A') {
-          // Arrow up — history prev
-          if (commandHistory.length > 0 && historyIndex > 0) {
-            historyIndex--;
-            inputBuffer = commandHistory[historyIndex];
-            cursorPos = inputBuffer.length;
-            clearLine();
+      // Escape sequences (arrow keys, CSI sequences like \x1b[1;1R, \x1b[24~, etc.)
+      if (ch === '\x1b') {
+        let j = i + 1;
+        if (j < data.length && data[j] === '[') {
+          j++;
+          while (
+            j < data.length &&
+            ((data[j] >= '0' && data[j] <= '9') ||
+              data[j] === ';' ||
+              data[j] === '?' ||
+              data[j] === '>')
+          ) {
+            j++;
           }
-          i += 3;
+          if (j < data.length) {
+            const finalChar = data[j];
+            if (finalChar === 'A') {
+              // Arrow up — history prev
+              if (commandHistory.length > 0 && historyIndex > 0) {
+                historyIndex--;
+                inputBuffer = commandHistory[historyIndex];
+                cursorPos = inputBuffer.length;
+                clearLine();
+              }
+            } else if (finalChar === 'B') {
+              // Arrow down — history next
+              if (historyIndex < commandHistory.length - 1) {
+                historyIndex++;
+                inputBuffer = commandHistory[historyIndex];
+              } else {
+                historyIndex = commandHistory.length;
+                inputBuffer = '';
+              }
+              cursorPos = inputBuffer.length;
+              clearLine();
+            } else if (finalChar === 'C') {
+              // Arrow right
+              if (cursorPos < inputBuffer.length) {
+                cursorPos++;
+                write('\x1b[C');
+              }
+            } else if (finalChar === 'D') {
+              // Arrow left
+              if (cursorPos > 0) {
+                cursorPos--;
+                write('\x1b[D');
+              }
+            }
+            j++; // Consume the final byte of the sequence
+          }
+          i = j;
           continue;
         }
-        if (seq === 'B') {
-          // Arrow down — history next
-          if (historyIndex < commandHistory.length - 1) {
-            historyIndex++;
-            inputBuffer = commandHistory[historyIndex];
-          } else {
-            historyIndex = commandHistory.length;
-            inputBuffer = '';
-          }
-          cursorPos = inputBuffer.length;
-          clearLine();
-          i += 3;
-          continue;
-        }
-        if (seq === 'C') {
-          // Arrow right
-          if (cursorPos < inputBuffer.length) {
-            cursorPos++;
-            write('\x1b[C');
-          }
-          i += 3;
-          continue;
-        }
-        if (seq === 'D') {
-          // Arrow left
-          if (cursorPos > 0) {
-            cursorPos--;
-            write('\x1b[D');
-          }
-          i += 3;
-          continue;
-        }
-        // Other escape seq — skip
         i++;
         continue;
       }
@@ -735,7 +736,6 @@ export const terminalService: TerminalService = {
         write('^C\r\n');
         inputBuffer = '';
         cursorPos = 0;
-        prompt();
         i++;
         continue;
       }
@@ -745,7 +745,6 @@ export const terminalService: TerminalService = {
         write('\x1b[2J\x1b[H');
         inputBuffer = '';
         cursorPos = 0;
-        prompt();
         i++;
         continue;
       }

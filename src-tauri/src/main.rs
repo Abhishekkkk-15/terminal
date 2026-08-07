@@ -25,17 +25,21 @@ async fn start_pty(
     app_handle: AppHandle,
     state: State<'_, AppTerminalState>,
 ) -> Result<(), String> {
+    let mut guard = state.terminal.lock().map_err(|e| e.to_string())?;
+
+    // If session is already initialized, return early to avoid killing active PTY
+    if guard.is_some() {
+        return Ok(());
+    }
+
     let shell = get_default_shell();
     let (tx, rx) = mpsc::channel::<TerminalEvent>();
 
     // Initialize the session
-    let mut sessions = TerminalSession::new(&shell, tx).map_err(|e| e.to_string())?;
+    let sessions = TerminalSession::new(&shell, tx).map_err(|e| e.to_string())?;
 
-    // Store the terminal in managed state
-    {
-        let mut guard = state.terminal.lock().map_err(|e| e.to_string())?;
-        *guard = Some(sessions);
-    }
+    *guard = Some(sessions);
+    drop(guard);
 
     std::thread::spawn(move || {
         while let Ok(event) = rx.recv() {
